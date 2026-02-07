@@ -102,20 +102,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 4. Preloader ---
     const preloader = document.getElementById('preloader');
-    if (preloader) {
-        const fadeOut = () => {
-            gsap.to(preloader, {
-                opacity: 0,
-                duration: 1,
-                onComplete: () => preloader.style.display = 'none'
-            });
-        };
+    let preloaderFaded = false;
 
-        window.addEventListener('load', fadeOut);
+    const fadeOutPreloader = () => {
+        if (preloaderFaded || !preloader) return;
+        preloaderFaded = true;
+        gsap.to(preloader, {
+            opacity: 0,
+            duration: 1,
+            onComplete: () => preloader.style.display = 'none'
+        });
+    };
 
-        // Fallback: If page load takes too long (e.g., due to large video/images), force fade out
-        setTimeout(fadeOut, 2500);
-    }
+    // We'll trigger fadeout from the scroll animation section after images load
+    // Fallback timeout if images fail to load
+    window.preloaderFadeOut = fadeOutPreloader;
+    setTimeout(fadeOutPreloader, 8000); // Extended fallback for large image sequences
 
     // --- 5. Magnetic Buttons ---
     const magneticBtns = document.querySelectorAll('.magnetic-btn');
@@ -277,10 +279,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Preload Images
+        let loadedCount = 0;
         const preloadImages = () => {
             for (let i = 1; i < frameCount; i++) {
                 const img = new Image();
                 img.src = currentFrame(i);
+                img.onload = () => {
+                    loadedCount++;
+                    // Fade out preloader after first 10 frames are loaded
+                    if (loadedCount === 10 && window.preloaderFadeOut) {
+                        window.preloaderFadeOut();
+                    }
+                };
                 images.push(img);
             }
         };
@@ -288,6 +298,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const img = new Image();
         img.src = currentFrame(1);
         images[0] = img; // Ensure first frame is at index 0 (technically frame 1)
+        img.onload = () => {
+            loadedCount++;
+            render();
+            // If this is the first image and we don't have scroll animation frames, fade out
+            if (frameCount <= 1 && window.preloaderFadeOut) {
+                window.preloaderFadeOut();
+            }
+        };
 
         // Draw Image to Canvas (Cover fit)
         const render = () => {
